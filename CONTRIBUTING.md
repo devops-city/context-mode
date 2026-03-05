@@ -14,23 +14,41 @@ This guide covers the local development workflow so you can test changes in a li
 
 ## Architecture Overview
 
-context-mode is a monorepo with three packages:
+context-mode uses a flat `src/` structure:
 
 ```
-packages/
-  shared/    → SQLite base class, types, truncation utils (imported by core + session)
-  core/      → MCP server, executor, store, security, runtime, CLI (builds to build/)
-  session/   → Session event DB, snapshot builder, extractors (builds to packages/session/dist/)
-hooks/       → Plain JS hooks (.mjs) — loaded fresh on each invocation, no build needed
+src/
+  server.ts        → MCP server, tool handlers, auto-indexing
+  store.ts         → FTS5 content store (index, search, chunking)
+  executor.ts      → Polyglot code executor (11 languages)
+  security.ts      → Permission enforcement (deny/allow rules)
+  runtime.ts       → Runtime detection (Node, Bun, Python, etc.)
+  db-base.ts       → SQLite base class (shared by store + session)
+  truncate.ts      → Smart output truncation
+  cli.ts           → CLI commands (setup, doctor)
+  types.ts         → Shared type definitions
+  session/
+    db.ts          → SessionDB — persistent event storage
+    extract.ts     → Event extractors for PostToolUse hook
+    snapshot.ts    → Resume snapshot builder (priority tiers)
+  adapters/
+    types.ts       → HookAdapter interface, RoutingInstructionsConfig
+    detect.ts      → Platform detection via env vars
+    claude-code/   → Claude Code adapter (index.ts, hooks.ts, config.ts)
+    gemini-cli/    → Gemini CLI adapter
+    opencode/      → OpenCode adapter
+    codex/         → Codex CLI adapter
+    vscode-copilot/ → VS Code Copilot adapter
+hooks/               → Plain JS hooks (.mjs) — no build needed
+configs/             → Per-platform install files (settings.json, mcp.json, CLAUDE.md, etc.)
 ```
 
-**Build output is flat**: `packages/core/src/server.ts` compiles to `build/server.js` (not `build/core/server.js`). This is intentional — `start.mjs` expects `build/server.js` at the repo root.
+`tsc` compiles `src/` → `build/`. `start.mjs` loads `server.bundle.mjs` (CI-built) if present, otherwise falls back to `build/server.js`.
 
-> **Critical for local dev:** `start.mjs` loads `server.bundle.mjs` (CI-built) over `build/server.js` if the bundle exists (line 79). **Delete `server.bundle.mjs` in your local clone** or your `build/server.js` changes will never be loaded:
+> **Critical for local dev:** Delete `server.bundle.mjs` in your local clone or your `build/server.js` changes will never be loaded:
 > ```bash
 > rm server.bundle.mjs  # forces start.mjs to use build/server.js
 > ```
-> The bundle is committed by CI for production — don't gitignore it, just delete it locally.
 
 ### Session Continuity Architecture
 
@@ -71,10 +89,8 @@ Raw session events are **never injected into context**. Only a compact summary t
 git clone https://github.com/mksglu/claude-context-mode.git
 cd claude-context-mode
 npm install
-npm run build  # produces build/, packages/shared/dist/, packages/session/dist/
+npm run build  # tsc compiles src/ → build/
 ```
-
-> **Critical:** `npm run build` must succeed before testing. It uses `tsc -b` (project references) to build all three packages in dependency order: shared → core → session. If `packages/session/dist/` or `packages/shared/dist/` are missing, session continuity hooks will fail with `SessionStart hook error`.
 
 ### 2. Symlink the cache to your local clone
 
@@ -84,26 +100,26 @@ First, find your cached version:
 
 ```bash
 ls ~/.claude/plugins/cache/claude-context-mode/context-mode/
-# Example output: 0.9.22
+# Example output: 0.9.23
 ```
 
 Then replace it with a symlink:
 
 ```bash
 # Back up the cache (use your actual version number)
-mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22 \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22.bak
+mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23 \
+   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23.bak
 
 # Symlink to your local clone
 ln -s /path/to/your/clone/claude-context-mode \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22
+   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
 ```
 
 Replace `/path/to/your/clone/claude-context-mode` with your actual local path.
 
 > **Why symlink?** The plugin system overwrites `installed_plugins.json` on every session start, reverting any manual path changes. A symlink lets the plugin system keep its managed path while the actual code resolves to your local clone.
 
-> **Critical:** The symlink must point to the root of your clone (where `hooks/`, `build/`, and `packages/` all live). Hooks registered in `hooks.json` use `${CLAUDE_PLUGIN_ROOT}` which resolves to this directory.
+> **Critical:** The symlink must point to the root of your clone (where `hooks/`, `build/`, and `src/` all live). Hooks registered in `hooks.json` use `${CLAUDE_PLUGIN_ROOT}` which resolves to this directory.
 
 ### 3. Update PreToolUse hook in settings
 
@@ -136,8 +152,8 @@ Replace `/path/to/your/clone/claude-context-mode` with your actual local path.
 Change the version in your local clone to something recognizable:
 
 ```bash
-# In package.json: "version": "0.9.22-dev"
-# In packages/core/src/server.ts: const VERSION = "0.9.22-dev";
+# In package.json: "version": "0.9.23-dev"
+# In src/server.ts: const VERSION = "0.9.23-dev";
 ```
 
 Then rebuild:
@@ -164,7 +180,7 @@ Restart Claude Code (`/exit` then `claude`).
 Run `/context-mode:ctx-doctor` in Claude Code. You should see your dev version:
 
 ```
-npm (MCP): WARN — local v0.9.22-dev, latest v0.9.22
+npm (MCP): WARN — local v0.9.23-dev, latest v0.9.23
 ```
 
 The version warning is expected -- it confirms you're running from your local clone, not the cache.
@@ -175,9 +191,9 @@ To switch back to the marketplace version:
 
 ```bash
 # Remove symlink and restore backup
-rm ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22
-mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22.bak \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.22
+rm ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
+mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23.bak \
+   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
 ```
 
 Then revert hooks in `~/.claude/settings.json` and restart Claude Code.
@@ -187,7 +203,7 @@ Then revert hooks in `~/.claude/settings.json` and restart Claude Code.
 ### Build and test your changes
 
 ```bash
-# TypeScript compilation (project references: shared → core → session)
+# TypeScript compilation
 npm run build
 
 # Run all tests (parallel via Vitest)
@@ -205,9 +221,10 @@ npm run test:watch
 | Changed | Rebuild needed? | Why |
 |---------|:-:|---|
 | `hooks/*.mjs` | No | Plain JS, loaded fresh each invocation |
-| `packages/core/src/*` | Yes | Compiles to `build/` (MCP server, executor, store) |
-| `packages/shared/src/*` | Yes | Compiles to `packages/shared/dist/`, imported by core + session |
-| `packages/session/src/*` | Yes | Compiles to `packages/session/dist/`, imported by hooks |
+| `src/*.ts` | Yes | Compiles to `build/` (MCP server, executor, store) |
+| `src/session/*.ts` | Yes | Compiles to `build/session/`, imported by hooks |
+| `src/adapters/**/*.ts` | Yes | Compiles to `build/adapters/`, platform detection + hooks |
+| `configs/*` | No | Static files, served directly |
 
 After rebuilding, restart your Claude Code session. The MCP server reloads on session start.
 
@@ -217,11 +234,13 @@ After rebuilding, restart your Claude Code session. The MCP server reloads on se
 
 | File | Purpose |
 |---|---|
-| `packages/core/src/server.ts` | MCP server, tool handlers, auto-indexing of session events |
-| `packages/core/src/store.ts` | FTS5 content store (index, search, chunking) |
-| `packages/core/src/executor.ts` | Polyglot code executor (JS, Python, Shell, etc.) |
-| `packages/session/src/db.ts` | SessionDB — persistent session event storage |
-| `packages/session/src/extract.ts` | Event extractors for PostToolUse hook |
+| `src/server.ts` | MCP server, tool handlers, auto-indexing of session events |
+| `src/store.ts` | FTS5 content store (index, search, chunking) |
+| `src/executor.ts` | Polyglot code executor (JS, Python, Shell, etc.) |
+| `src/session/db.ts` | SessionDB — persistent session event storage |
+| `src/session/extract.ts` | Event extractors for PostToolUse hook |
+| `src/adapters/detect.ts` | Platform detection (Claude Code, Gemini CLI, etc.) |
+| `src/adapters/types.ts` | HookAdapter interface, shared adapter types |
 | `hooks/sessionstart.mjs` | Session lifecycle (startup/compact/resume/clear) |
 | `hooks/posttooluse.mjs` | Real-time event capture from tool calls |
 | `hooks/precompact.mjs` | Resume snapshot builder (fires before compact) |
