@@ -87,7 +87,7 @@ function getVersion(cmd: string): string {
       timeout: 5000,
     })
       .trim()
-      .split("\n")[0];
+      .split(/\r?\n/)[0];
   } catch {
     return "unknown";
   }

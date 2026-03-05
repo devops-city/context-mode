@@ -427,26 +427,21 @@ export class ContentStore {
    * Uses cached prepared statements from #prepareStatements().
    */
   #insertChunks(chunks: Chunk[], label: string, text: string): IndexResult {
-    // Dedup: remove previous source with same label so only the latest
-    // output is searchable. Prevents stale results in iterative workflows
-    // like build-fix-build cycles. (See: GitHub issue #67)
-    this.#stmtDeleteChunksByLabel.run(label);
-    this.#stmtDeleteChunksTrigramByLabel.run(label);
-    this.#stmtDeleteSourcesByLabel.run(label);
-
-    if (chunks.length === 0) {
-      const info = this.#stmtInsertSourceEmpty.run(label);
-      return {
-        sourceId: Number(info.lastInsertRowid),
-        label,
-        totalChunks: 0,
-        codeChunks: 0,
-      };
-    }
-
     const codeChunks = chunks.filter((c) => c.hasCode).length;
 
+    // Atomic dedup + insert: delete previous source with same label,
+    // then insert new content — all within a single transaction.
+    // Prevents stale results in iterative workflows. (See: GitHub issue #67)
     const transaction = this.#db.transaction(() => {
+      this.#stmtDeleteChunksByLabel.run(label);
+      this.#stmtDeleteChunksTrigramByLabel.run(label);
+      this.#stmtDeleteSourcesByLabel.run(label);
+
+      if (chunks.length === 0) {
+        const info = this.#stmtInsertSourceEmpty.run(label);
+        return Number(info.lastInsertRowid);
+      }
+
       const info = this.#stmtInsertSource.run(label, chunks.length, codeChunks);
       const sourceId = Number(info.lastInsertRowid);
 
@@ -460,7 +455,7 @@ export class ContentStore {
     });
 
     const sourceId = transaction();
-    this.#extractAndStoreVocabulary(text);
+    if (text) this.#extractAndStoreVocabulary(text);
 
     return {
       sourceId,

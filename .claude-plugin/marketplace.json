@@ -1,5 +1,5 @@
 {
-  "name": "claude-context-mode",
+  "name": "context-mode",
   "owner": {
     "name": "Mert Koseoğlu",
     "email": "code.bm.ksglu@gmail.com"
@@ -13,7 +13,7 @@
       "name": "context-mode",
       "source": "./",
       "description": "Claude Code MCP plugin that saves 98% of your context window. Sandboxed code execution in 11 languages, FTS5 knowledge base with BM25 ranking, and intent-driven search.",
-      "version": "0.9.22",
+      "version": "1.0.0",
       "author": {
         "name": "Mert Koseoğlu"
       },

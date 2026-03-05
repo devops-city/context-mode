@@ -445,7 +445,7 @@ export class ClaudeCodeAdapter implements HookAdapter {
         base,
         "plugins",
         "cache",
-        "claude-context-mode",
+        "context-mode",
         "context-mode",
       );
       try {

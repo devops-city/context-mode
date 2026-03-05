@@ -375,10 +375,10 @@ async function upgrade() {
   const localVersion = getLocalVersion();
   const tmpDir = join(tmpdir(), `context-mode-upgrade-${Date.now()}`);
 
-  s.start("Cloning mksglu/claude-context-mode");
+  s.start("Cloning mksglu/context-mode");
   try {
     execSync(
-      `git clone --depth 1 https://github.com/mksglu/claude-context-mode.git "${tmpDir}"`,
+      `git clone --depth 1 https://github.com/mksglu/context-mode.git "${tmpDir}"`,
       { stdio: "pipe", timeout: 30000 },
     );
     s.stop("Downloaded");
@@ -459,7 +459,7 @@ async function upgrade() {
     // Update global npm
     s.start("Updating npm global package");
     try {
-      execSync(`npm install -g "${pluginRoot}" --no-audit --no-fund 2>/dev/null`, {
+      execSync(`npm install -g "${pluginRoot}" --no-audit --no-fund`, {
         stdio: "pipe",
         timeout: 30000,
       });

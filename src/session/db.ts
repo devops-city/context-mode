@@ -267,29 +267,35 @@ export class SessionDB extends SQLiteBase {
       .slice(0, 16)
       .toUpperCase();
 
-    // Deduplication check: same type + data_hash in last N events
-    const dup = this.stmt(S.checkDuplicate).get(sessionId, DEDUP_WINDOW, event.type, dataHash);
-    if (dup) return;
+    // Atomic: dedup check + eviction + insert in a single transaction
+    // to prevent race conditions from concurrent hook calls.
+    const transaction = this.db.transaction(() => {
+      // Deduplication check: same type + data_hash in last N events
+      const dup = this.stmt(S.checkDuplicate).get(sessionId, DEDUP_WINDOW, event.type, dataHash);
+      if (dup) return;
 
-    // Enforce max events with FIFO eviction of lowest priority
-    const countRow = this.stmt(S.getEventCount).get(sessionId) as { cnt: number };
-    if (countRow.cnt >= MAX_EVENTS_PER_SESSION) {
-      this.stmt(S.evictLowestPriority).run(sessionId);
-    }
+      // Enforce max events with FIFO eviction of lowest priority
+      const countRow = this.stmt(S.getEventCount).get(sessionId) as { cnt: number };
+      if (countRow.cnt >= MAX_EVENTS_PER_SESSION) {
+        this.stmt(S.evictLowestPriority).run(sessionId);
+      }
 
-    // Insert the event
-    this.stmt(S.insertEvent).run(
-      sessionId,
-      event.type,
-      event.category,
-      event.priority,
-      event.data,
-      sourceHook,
-      dataHash,
-    );
+      // Insert the event
+      this.stmt(S.insertEvent).run(
+        sessionId,
+        event.type,
+        event.category,
+        event.priority,
+        event.data,
+        sourceHook,
+        dataHash,
+      );
 
-    // Update meta if session exists
-    this.stmt(S.updateMetaLastEvent).run(sessionId);
+      // Update meta if session exists
+      this.stmt(S.updateMetaLastEvent).run(sessionId);
+    });
+
+    transaction();
   }
 
   /**

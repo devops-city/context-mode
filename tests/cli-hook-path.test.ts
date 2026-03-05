@@ -5,7 +5,7 @@
  * On Windows, Node.js resolve() returns backslashes which are stripped by
  * Bash (MSYS2) — the shell Claude Code uses on Windows.
  *
- * See: https://github.com/mksglu/claude-context-mode/issues/55
+ * See: https://github.com/mksglu/context-mode/issues/55
  */
 
 import { strict as assert } from "node:assert";

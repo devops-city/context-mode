@@ -24,7 +24,16 @@ import {
   hasBunRuntime,
 } from "./runtime.js";
 
-const VERSION = "0.9.23-dev";
+const VERSION = "1.0.0";
+
+// Prevent silent server death from unhandled async errors
+process.on("unhandledRejection", (err) => {
+  process.stderr.write(`[context-mode] unhandledRejection: ${err}\n`);
+});
+process.on("uncaughtException", (err) => {
+  process.stderr.write(`[context-mode] uncaughtException: ${err?.message ?? err}\n`);
+});
+
 const runtimes = detectRuntimes();
 const available = getAvailableLanguages(runtimes);
 const server = new McpServer({

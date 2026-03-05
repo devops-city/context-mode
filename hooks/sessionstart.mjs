@@ -16,12 +16,13 @@
 import { ROUTING_BLOCK } from "./routing-block.mjs";
 import { readStdin, getSessionId, getSessionDBPath, getSessionEventsPath, getCleanupFlagPath } from "./session-helpers.mjs";
 import { writeSessionEventsFile, buildSessionDirective, getAllProjectEvents } from "./session-directive.mjs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 
-// Resolve absolute path for imports
-const HOOK_DIR = new URL(".", import.meta.url).pathname;
+// Resolve absolute path for imports (fileURLToPath for Windows compat)
+const HOOK_DIR = dirname(fileURLToPath(import.meta.url));
 const PKG_SESSION = join(HOOK_DIR, "..", "build", "session");
 
 let additionalContext = ROUTING_BLOCK;

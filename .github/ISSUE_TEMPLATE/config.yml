@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Open a PR instead
-    url: https://github.com/mksglu/claude-context-mode/blob/main/.github/PULL_REQUEST_TEMPLATE.md
+    url: https://github.com/mksglu/context-mode/blob/main/.github/PULL_REQUEST_TEMPLATE.md
     about: Found a bug? PRs with TDD (red-green-refactor) are strongly preferred over issues.
   - name: Discussions
-    url: https://github.com/mksglu/claude-context-mode/discussions
+    url: https://github.com/mksglu/context-mode/discussions
     about: Ask questions or share ideas

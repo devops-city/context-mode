@@ -102,7 +102,7 @@ export class VSCodeCopilotAdapter implements HookAdapter {
       toolName: input.tool_name ?? "",
       toolInput: input.tool_input ?? {},
       sessionId: this.extractSessionId(input),
-      projectDir: process.env.CLAUDE_PROJECT_DIR,
+      projectDir: process.env.CLAUDE_PROJECT_DIR || process.cwd(),
       raw,
     };
   }
@@ -115,7 +115,7 @@ export class VSCodeCopilotAdapter implements HookAdapter {
       toolOutput: input.tool_output,
       isError: input.is_error,
       sessionId: this.extractSessionId(input),
-      projectDir: process.env.CLAUDE_PROJECT_DIR,
+      projectDir: process.env.CLAUDE_PROJECT_DIR || process.cwd(),
       raw,
     };
   }
@@ -124,7 +124,7 @@ export class VSCodeCopilotAdapter implements HookAdapter {
     const input = raw as VSCodeCopilotHookInput;
     return {
       sessionId: this.extractSessionId(input),
-      projectDir: process.env.CLAUDE_PROJECT_DIR,
+      projectDir: process.env.CLAUDE_PROJECT_DIR || process.cwd(),
       raw,
     };
   }
@@ -151,7 +151,7 @@ export class VSCodeCopilotAdapter implements HookAdapter {
     return {
       sessionId: this.extractSessionId(input),
       source,
-      projectDir: process.env.CLAUDE_PROJECT_DIR,
+      projectDir: process.env.CLAUDE_PROJECT_DIR || process.cwd(),
       raw,
     };
   }

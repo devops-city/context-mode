@@ -86,8 +86,8 @@ Raw session events are **never injected into context**. Only a compact summary t
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/mksglu/claude-context-mode.git
-cd claude-context-mode
+git clone https://github.com/mksglu/context-mode.git
+cd context-mode
 npm install
 npm run build  # tsc compiles src/ → build/
 ```
@@ -99,7 +99,7 @@ Claude Code's plugin system manages `~/.claude/plugins/installed_plugins.json` a
 First, find your cached version:
 
 ```bash
-ls ~/.claude/plugins/cache/claude-context-mode/context-mode/
+ls ~/.claude/plugins/cache/context-mode/context-mode/
 # Example output: 0.9.23
 ```
 
@@ -107,15 +107,15 @@ Then replace it with a symlink:
 
 ```bash
 # Back up the cache (use your actual version number)
-mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23 \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23.bak
+mv ~/.claude/plugins/cache/context-mode/context-mode/0.9.23 \
+   ~/.claude/plugins/cache/context-mode/context-mode/0.9.23.bak
 
 # Symlink to your local clone
-ln -s /path/to/your/clone/claude-context-mode \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
+ln -s /path/to/your/clone/context-mode \
+   ~/.claude/plugins/cache/context-mode/context-mode/0.9.23
 ```
 
-Replace `/path/to/your/clone/claude-context-mode` with your actual local path.
+Replace `/path/to/your/clone/context-mode` with your actual local path.
 
 > **Why symlink?** The plugin system overwrites `installed_plugins.json` on every session start, reverting any manual path changes. A symlink lets the plugin system keep its managed path while the actual code resolves to your local clone.
 
@@ -134,7 +134,7 @@ The symlink in step 2 ensures `hooks.json` (which registers PostToolUse, PreComp
         "hooks": [
           {
             "type": "command",
-            "command": "node /path/to/your/clone/claude-context-mode/hooks/pretooluse.mjs"
+            "command": "node /path/to/your/clone/context-mode/hooks/pretooluse.mjs"
           }
         ]
       }
@@ -143,7 +143,7 @@ The symlink in step 2 ensures `hooks.json` (which registers PostToolUse, PreComp
 }
 ```
 
-Replace `/path/to/your/clone/claude-context-mode` with your actual local path.
+Replace `/path/to/your/clone/context-mode` with your actual local path.
 
 > **Important:** Do NOT add PostToolUse, PreCompact, SessionStart, or UserPromptSubmit to `settings.json` — they are already registered in `hooks.json` and the symlink makes them resolve to your local clone. Adding them to both causes double invocations, split session IDs, and SQLite locking errors.
 
@@ -194,9 +194,9 @@ To switch back to the marketplace version:
 
 ```bash
 # Remove symlink and restore backup
-rm ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
-mv ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23.bak \
-   ~/.claude/plugins/cache/claude-context-mode/context-mode/0.9.23
+rm ~/.claude/plugins/cache/context-mode/context-mode/0.9.23
+mv ~/.claude/plugins/cache/context-mode/context-mode/0.9.23.bak \
+   ~/.claude/plugins/cache/context-mode/context-mode/0.9.23
 ```
 
 Then revert hooks in `~/.claude/settings.json` and restart Claude Code.

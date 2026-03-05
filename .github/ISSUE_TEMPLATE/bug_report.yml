@@ -17,7 +17,7 @@ body:
         1. **Install the [TDD skill](https://www.aihero.dev/skill-test-driven-development-claude-code):** `claude install-skill https://www.aihero.dev/skill-test-driven-development-claude-code`
         2. **RED — Write a failing test** that reproduces the bug. If you can describe the bug, you can write a test for it. Let your AI agent help.
         3. **GREEN — Fix the bug.** The codebase is straightforward TypeScript. Your AI agent can navigate it.
-        4. **Open a PR** following the [PR template](https://github.com/mksglu/claude-context-mode/blob/main/.github/PULL_REQUEST_TEMPLATE.md) — red/green output required.
+        4. **Open a PR** following the [PR template](https://github.com/mksglu/context-mode/blob/main/.github/PULL_REQUEST_TEMPLATE.md) — red/green output required.
 
         Our CI runs on **Ubuntu, macOS, and Windows**. Your PR will be automatically verified across all three.
 
@@ -33,7 +33,7 @@ body:
         ---
 
         **Before you file:**
-        1. [Search existing issues](https://github.com/mksglu/claude-context-mode/issues) to make sure this hasn't been reported already
+        1. [Search existing issues](https://github.com/mksglu/context-mode/issues) to make sure this hasn't been reported already
         2. Run `/context-mode:ctx-upgrade` to pull the latest version
         3. Restart your agent session
         4. Run `/context-mode:ctx-doctor` or ask the model to call the `stats` tool
