@@ -441,11 +441,15 @@ describe("OpenClawPlugin", () => {
       expect(result.compacted).toBe(true);
     });
 
-    it("events survive session_start re-key (renameSession)", async () => {
+    it("events survive session_start re-key (renameSession) with sessionKey", async () => {
       const mock = await createTestPlugin(join(tempDir, "e2e-rekey"));
       const afterHook = mock.lifecycle.find((h) => h.event === "after_tool_call");
       const sessionStartHook = mock.lifecycle.find((h) => h.event === "session_start");
       const engine = mock.contextEngines[0].factory();
+
+      // First session_start establishes sessionKey
+      const firstSid = randomUUID();
+      await sessionStartHook!.handler({ sessionId: firstSid, sessionKey: "bot:telegram:123" });
 
       // Insert an event under initial session
       await afterHook!.handler({
@@ -456,9 +460,65 @@ describe("OpenClawPlugin", () => {
 
       // Simulate OpenClaw re-keying to a new session ID on gateway restart
       const newSessionId = randomUUID();
-      await sessionStartHook!.handler({ sessionId: newSessionId });
+      await sessionStartHook!.handler({ sessionId: newSessionId, sessionKey: "bot:telegram:123" });
 
       // Events must survive: compact should find them and return compacted: true
+      const result = await engine.compact();
+      expect(result.ok).toBe(true);
+      expect(result.compacted).toBe(true);
+    });
+
+    it("session_start with sessionKey isolates sessions per agent", async () => {
+      const sharedDir = join(tempDir, "iso-shared");
+
+      // Agent A
+      const mockA = await createTestPlugin(sharedDir);
+      const sessionStartA = mockA.lifecycle.find((h) => h.event === "session_start");
+      const afterHookA = mockA.lifecycle.find((h) => h.event === "after_tool_call");
+      const engineA = mockA.contextEngines[0].factory();
+
+      const sidA = randomUUID();
+      await sessionStartA!.handler({ sessionId: sidA, sessionKey: "agent-a:telegram:111" });
+
+      await afterHookA!.handler({
+        toolName: "Read",
+        params: { file_path: "/a.ts" },
+        output: "agent A content",
+      });
+
+      // Agent B (same project dir)
+      const mockB = await createTestPlugin(sharedDir);
+      const sessionStartB = mockB.lifecycle.find((h) => h.event === "session_start");
+      const engineB = mockB.contextEngines[0].factory();
+
+      const sidB = randomUUID();
+      await sessionStartB!.handler({ sessionId: sidB, sessionKey: "agent-b:telegram:222" });
+
+      // Agent B has no events — isolated from Agent A
+      const resultB = await engineB.compact();
+      expect(resultB.compacted).toBe(false);
+
+      // Agent A still has its events
+      const resultA = await engineA.compact();
+      expect(resultA.compacted).toBe(true);
+    });
+
+    it("session_start without sessionKey falls back to fresh session", async () => {
+      const mock = await createTestPlugin(join(tempDir, "e2e-fallback"));
+      const sessionStartHook = mock.lifecycle.find((h) => h.event === "session_start");
+      const afterHook = mock.lifecycle.find((h) => h.event === "after_tool_call");
+      const engine = mock.contextEngines[0].factory();
+
+      // session_start without sessionKey — no re-key, just fresh session
+      const sid = randomUUID();
+      await sessionStartHook!.handler({ sessionId: sid });
+
+      await afterHook!.handler({
+        toolName: "Read",
+        params: { file_path: "/fallback.ts" },
+        output: "fallback content",
+      });
+
       const result = await engine.compact();
       expect(result.ok).toBe(true);
       expect(result.compacted).toBe(true);

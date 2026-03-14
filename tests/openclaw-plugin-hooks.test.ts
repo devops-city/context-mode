@@ -116,7 +116,7 @@ describe("session_start hook", () => {
     assert.equal(result1, undefined, "no resume in DB → undefined");
 
     // Call session_start (simulating session restart)
-    await sessionStartHandler({ sessionId: randomUUID() });
+    await sessionStartHandler({ sessionId: randomUUID(), sessionKey: "test:agent:1" });
 
     // Call before_prompt_build again — still undefined (no DB resume), but must not throw
     const result2 = await resumeHook.handler();
@@ -256,39 +256,84 @@ describe("resume injection (before_prompt_build)", () => {
 // ════════════════════════════════════════════
 
 describe("SessionDB.getMostRecentSession", () => {
-  test("returns null when no sessions exist for projectDir", () => {
+  test("returns null when no sessions exist for sessionKey", () => {
     const db = createTestDB();
-    const result = db.getMostRecentSession("/no/such/project");
+    const result = db.getMostRecentSession("no-such-key");
     assert.equal(result, null);
   });
 
-  test("returns session_id of the most recently started session", () => {
+  test("returns session_id scoped by sessionKey", () => {
     const db = createTestDB();
     const projectDir = join(tmpdir(), `proj-${randomUUID()}`);
+    const keyA = "agent-a:telegram:111";
+    const keyB = "agent-b:telegram:222";
+    const sidA = randomUUID();
+    const sidB = randomUUID();
+
+    db.ensureSession(sidA, projectDir, keyA);
+    db.ensureSession(sidB, projectDir, keyB);
+
+    assert.equal(db.getMostRecentSession(keyA), sidA);
+    assert.equal(db.getMostRecentSession(keyB), sidB);
+  });
+
+  test("returns most recent session when multiple exist for same sessionKey", () => {
+    const db = createTestDB();
+    const projectDir = join(tmpdir(), `proj-${randomUUID()}`);
+    const key = "agent-a:telegram:111";
     const sid1 = randomUUID();
     const sid2 = randomUUID();
 
-    db.ensureSession(sid1, projectDir);
-    // Small delay via second insert to guarantee different started_at
-    db.ensureSession(sid2, projectDir);
+    db.ensureSession(sid1, projectDir, key);
+    db.ensureSession(sid2, projectDir, key);
 
-    const result = db.getMostRecentSession(projectDir);
-    // Most recently inserted session wins (sid2 inserted last)
-    assert.ok(result === sid1 || result === sid2, "must return one of the two session IDs");
+    const result = db.getMostRecentSession(key);
+    // Both have sub-second timestamps from DEFAULT (datetime('now')),
+    // but sid2 was inserted last so ORDER BY started_at DESC, rowid DESC returns sid2
+    assert.equal(result, sid2, "must return the most recently inserted session");
   });
 
-  test("ignores sessions belonging to other projects", () => {
+  test("ignores sessions with different sessionKey", () => {
     const db = createTestDB();
-    const myDir = join(tmpdir(), `my-proj-${randomUUID()}`);
-    const otherDir = join(tmpdir(), `other-proj-${randomUUID()}`);
-    const mySid = randomUUID();
-    const otherSid = randomUUID();
+    const projectDir = join(tmpdir(), `proj-${randomUUID()}`);
+    const sidA = randomUUID();
+    const sidB = randomUUID();
 
-    db.ensureSession(otherSid, otherDir);
-    db.ensureSession(mySid, myDir);
+    db.ensureSession(sidA, projectDir, "agent-a:telegram:111");
+    db.ensureSession(sidB, projectDir, "agent-b:telegram:222");
 
-    const result = db.getMostRecentSession(myDir);
-    assert.equal(result, mySid);
+    assert.equal(db.getMostRecentSession("agent-a:telegram:111"), sidA);
+  });
+});
+
+// ════════════════════════════════════════════
+// SessionDB.session_key support
+// ════════════════════════════════════════════
+
+describe("SessionDB.session_key support", () => {
+  test("ensureSession accepts optional sessionKey parameter", () => {
+    const db = createTestDB();
+    const sid = randomUUID();
+    const projectDir = join(tmpdir(), `proj-${randomUUID()}`);
+    const sessionKey = "agent-a:telegram:12345";
+
+    db.ensureSession(sid, projectDir, sessionKey);
+
+    const stats = db.getSessionStats(sid);
+    assert.ok(stats, "session must exist");
+    assert.equal(stats.session_key, sessionKey, "session_key must be stored");
+  });
+
+  test("ensureSession works without sessionKey (backward compat)", () => {
+    const db = createTestDB();
+    const sid = randomUUID();
+    const projectDir = join(tmpdir(), `proj-${randomUUID()}`);
+
+    db.ensureSession(sid, projectDir);
+
+    const stats = db.getSessionStats(sid);
+    assert.ok(stats, "session must exist");
+    assert.equal(stats.session_key, null, "session_key defaults to null");
   });
 });
 
@@ -466,7 +511,7 @@ describe("verbose logging", () => {
 
     const hook = typedHooks.find(h => h.hookName === "session_start");
     assert.ok(hook);
-    await hook.handler({ sessionId: randomUUID() });
+    await hook.handler({ sessionId: randomUUID(), sessionKey: "test:agent:1" });
 
     const infoLines = logLines.filter(l => l.level === "info");
     assert.ok(infoLines.length > 0, "session_start must emit at least one info log");
@@ -501,7 +546,7 @@ describe("verbose logging", () => {
     // session_start to capture session ID, then manually inject resume
     const sessionStartHook = typedHooks.find(h => h.hookName === "session_start");
     const sid = randomUUID();
-    await sessionStartHook!.handler({ sessionId: sid });
+    await sessionStartHook!.handler({ sessionId: sid, sessionKey: "test:agent:1" });
 
     // Inject resume directly into DB
     const dbPath = require("node:path").join(require("node:os").tmpdir(), "dummy.db");

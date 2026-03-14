@@ -105,6 +105,8 @@ interface ContextEngineInstance {
 /** Shape of the event OpenClaw passes to session_start hook. */
 interface SessionStartEvent {
   sessionId?: string;
+  sessionKey?: string;
+  resumedFrom?: string;
   agentId?: string;
   startedAt?: string;
 }
@@ -204,9 +206,10 @@ export default {
     // Initialize session synchronously (SessionDB constructor is sync)
     const db = new SessionDB({ dbPath: getDBPath(projectDir) });
     db.cleanupOldSessions(7);
-    // Resume the most recent session for this project (survives gateway restarts)
-    let sessionId = db.getMostRecentSession(projectDir) ?? randomUUID();
+    // Start with temp UUID — session_start will assign the real ID + sessionKey
+    let sessionId = randomUUID();
     let resumeInjected = false;
+    // Create temp session so after_tool_call events before session_start have a valid row
     db.ensureSession(sessionId, projectDir);
 
     // Load routing instructions synchronously for prompt injection
@@ -409,12 +412,27 @@ export default {
       async (event: unknown) => {
         try {
           const e = event as SessionStartEvent;
-          if (e?.sessionId && e.sessionId !== sessionId) {
-            const sid = e.sessionId as ReturnType<typeof randomUUID>;
-            db.renameSession(sessionId, sid);
-            sessionId = sid;
-            log.info(`session re-keyed → ${sid.slice(0, 8)}…`);
+          const sid = e?.sessionId;
+          if (!sid) return;
+
+          const key = e?.sessionKey;
+          if (key) {
+            // Per-agent session lookup via sessionKey
+            const prevId = db.getMostRecentSession(key);
+            if (prevId && prevId !== sid) {
+              db.renameSession(prevId, sid);
+              log.info(`session re-keyed ${prevId.slice(0, 8)}… → ${sid.slice(0, 8)}… (key=${key})`);
+            } else if (!prevId) {
+              db.ensureSession(sid, projectDir, key);
+              log.info(`new session ${sid.slice(0, 8)}… (key=${key})`);
+            }
+          } else {
+            // Fallback: no sessionKey → fresh session (Option A)
+            db.ensureSession(sid, projectDir);
+            log.info(`session ${sid.slice(0, 8)}… (no sessionKey — fallback)`);
           }
+
+          sessionId = sid as ReturnType<typeof randomUUID>;
           resumeInjected = false;
         } catch {
           // best effort — never break session start
