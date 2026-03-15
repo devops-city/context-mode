@@ -191,9 +191,8 @@ function getOrCreateDB(projectDir: string): SessionDB {
 }
 
 // ── Module-level state for command handlers ───────────────
-// Commands are registered once (first register() call) but need access to the
-// latest session's db/sessionId. These refs are updated by each register() call.
-let _commandsRegistered = false;
+// Commands are re-registered on each register() call (OpenClaw's registerCommand
+// is idempotent). These refs give handlers access to the current session's state.
 let _latestDb: SessionDB | null = null;
 let _latestSessionId = "";
 let _latestPluginRoot = "";
@@ -235,6 +234,7 @@ export default {
     let sessionId = randomUUID();
     log.info("register() called, sessionId:", sessionId.slice(0, 8));
     let resumeInjected = false;
+    let sessionKey: string | undefined;
     // Create temp session so after_tool_call events before session_start have a valid row
     db.ensureSession(sessionId, projectDir);
 
@@ -273,6 +273,9 @@ export default {
     })();
 
     // ── 1. tool_call:before — Routing enforcement ──────────
+    // NOTE: api.on() was broken in OpenClaw ≤2026.1.29 (fixed in PR #9761, issue #5513).
+    // api.on() is the correct API for typed lifecycle hooks (session_start, before_tool_call, etc.).
+    // api.registerHook() is for generic/command hooks (command:new, command:reset, command:stop).
 
     api.on(
       "before_tool_call",
@@ -429,7 +432,10 @@ export default {
       "command:stop",
       async () => {
         try {
-          log.debug("command:stop", { sessionId: sessionId.slice(0, 8) });
+          log.debug("command:stop", { sessionId: sessionId.slice(0, 8), sessionKey });
+          if (sessionKey) {
+            workspaceRouter.removeSession(sessionKey);
+          }
           db.cleanupOldSessions(7);
         } catch {
           // best effort
@@ -473,6 +479,7 @@ export default {
 
           sessionId = sid as ReturnType<typeof randomUUID>;
           _latestSessionId = sessionId;
+          sessionKey = key;
           if (key) {
             workspaceRouter.registerSession(key, sessionId);
           }
@@ -484,6 +491,9 @@ export default {
     );
 
     // ── 5. before_compaction — Flush events to snapshot before compaction ─
+    // NOTE: OpenClaw compaction hooks were broken until #4967/#3728 fix.
+    // Adapter gracefully degrades — session recovery falls back to DB snapshot
+    // reconstruction when compaction events don't fire.
 
     api.on(
       "before_compaction",
@@ -628,9 +638,7 @@ export default {
     _latestSessionId = sessionId;
     _latestPluginRoot = pluginRoot;
 
-    if (api.registerCommand && !_commandsRegistered) {
-      _commandsRegistered = true;
-
+    if (api.registerCommand) {
       api.registerCommand({
         name: "ctx-stats",
         description: "Show context-mode session statistics",

@@ -21,6 +21,14 @@ export function extractWorkspace(params: Record<string, unknown>): string | null
 /**
  * Maps agent workspaces to sessionIds using sessionKey convention.
  * sessionKey pattern: "agent:<name>:main" → workspace "/openclaw/workspace-<name>"
+ *
+ * Why this exists alongside per-session closures:
+ * Each register() call creates its own closure with its own sessionId, which
+ * naturally isolates sessions. The WorkspaceRouter acts as a safety net for
+ * after_tool_call events where OpenClaw may deliver the event to the wrong
+ * closure (e.g. tool calls interleaving across agents). It resolves the correct
+ * sessionId from workspace paths in tool params, falling back to the closure
+ * sessionId when no workspace is detected.
  */
 export class WorkspaceRouter {
   // workspace path → sessionId
@@ -31,6 +39,14 @@ export class WorkspaceRouter {
     const workspace = this.workspaceFromKey(sessionKey);
     if (workspace) {
       this.map.set(workspace, sessionId);
+    }
+  }
+
+  /** Remove a session (e.g. on command:stop). */
+  removeSession(sessionKey: string): void {
+    const workspace = this.workspaceFromKey(sessionKey);
+    if (workspace) {
+      this.map.delete(workspace);
     }
   }
 

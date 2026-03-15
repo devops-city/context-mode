@@ -39,6 +39,9 @@ src/
     opencode/      → OpenCode adapter
     codex/         → Codex CLI adapter
     vscode-copilot/ → VS Code Copilot adapter
+  openclaw/
+    workspace-router.ts → Workspace path resolution for Pi Agent sessions
+  openclaw-plugin.ts   → OpenClaw gateway plugin entry (sync register)
 hooks/               → Plain JS hooks (.mjs) — no build needed
 configs/             → Per-platform install files (settings.json, mcp.json, CLAUDE.md, etc.)
 ```
@@ -269,6 +272,41 @@ When your change affects tool output (execute, search, fetch_and_index, etc.), a
 1. Run the same prompt **before** your change (on `main`)
 2. Run it **again** with your change
 3. Include both outputs in your PR
+
+## Testing the OpenClaw Adapter
+
+The OpenClaw adapter has its own test suite and installation workflow.
+
+### Running tests
+
+```bash
+npx vitest run tests/openclaw-plugin.test.ts tests/openclaw-plugin-hooks.test.ts tests/openclaw/workspace-router.test.ts
+```
+
+These tests run without a live OpenClaw instance — they mock the plugin API.
+
+### Local OpenClaw testing
+
+To test against a running OpenClaw gateway:
+
+1. Install the plugin:
+   ```bash
+   scripts/install-openclaw-plugin.sh [OPENCLAW_STATE_DIR]
+   ```
+
+2. Rebuild native dependencies for the system Node version:
+   ```bash
+   npm rebuild better-sqlite3
+   ```
+
+3. Restart the gateway (SIGUSR1 triggers config reload):
+   ```bash
+   kill -USR1 $(pgrep -f "node.*openclaw/dist/index.js")
+   ```
+
+4. Open a Pi Agent session and verify hooks fire by checking the debug log output.
+
+See [`docs/adapters/openclaw.md`](docs/adapters/openclaw.md) for hook registration details and known upstream issues.
 
 ## Submitting a Bug Report
 

@@ -266,6 +266,21 @@ This works alongside the plugin as a parallel enforcement layer — the plugin i
 </details>
 
 <details>
+<summary><strong>OpenClaw / Pi Agent</strong> <sup>(Beta)</sup></summary>
+
+context-mode integrates with [OpenClaw](https://github.com/openclaw) as a native gateway plugin, targeting **Pi Agent** (OpenClaw's coding agent with Read/Write/Edit/Bash tools).
+
+```bash
+scripts/install-openclaw-plugin.sh [OPENCLAW_STATE_DIR]
+```
+
+The installer builds the plugin, rebuilds `better-sqlite3` for the system Node version, registers the extension, and restarts the gateway. Hooks are registered automatically via `api.on()` (lifecycle/tool hooks) and `api.registerHook()` (command hooks).
+
+Full documentation: [`docs/adapters/openclaw.md`](docs/adapters/openclaw.md)
+
+</details>
+
+<details>
 <summary><strong>Codex CLI</strong> <sup>(Beta)</sup></summary>
 
 **Step 1 — Install globally:**
@@ -351,13 +366,13 @@ Context Mode captures every meaningful event during your session and persists th
 
 Session continuity requires 4 hooks working together:
 
-| Hook | Role | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | Codex CLI |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PostToolUse** | Captures events after each tool call | Yes | Yes | Yes | Yes | Plugin | -- |
-| **UserPromptSubmit** | Captures user decisions and corrections | Yes | -- | -- | -- | -- | -- |
-| **PreCompact** | Builds snapshot before compaction | Yes | Yes | Yes | -- | Plugin | -- |
-| **SessionStart** | Restores state after compaction or resume | Yes | Yes | Yes | -- | -- | -- |
-| | **Session completeness** | **Full** | **High** | **High** | **Partial** | **High** | **--** |
+| Hook | Role | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | OpenClaw | Codex CLI |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **PostToolUse** | Captures events after each tool call | Yes | Yes | Yes | Yes | Plugin | Plugin | -- |
+| **UserPromptSubmit** | Captures user decisions and corrections | Yes | -- | -- | -- | -- | -- | -- |
+| **PreCompact** | Builds snapshot before compaction | Yes | Yes | Yes | -- | Plugin | Plugin | -- |
+| **SessionStart** | Restores state after compaction or resume | Yes | Yes | Yes | -- | -- | Plugin | -- |
+| | **Session completeness** | **Full** | **High** | **High** | **Partial** | **High** | **High** | **--** |
 
 > **Note:** Full session continuity (capture + snapshot + restore) works on **Claude Code**, **Gemini CLI**, **VS Code Copilot**, and **OpenCode**. **Cursor** captures tool events via `preToolUse`/`postToolUse`, but `sessionStart` is currently rejected by Cursor's validator ([forum report](https://forum.cursor.com/t/unknown-hook-type-sessionstart/149566)), so session restore after compaction is not available yet. **OpenCode** uses the `experimental.session.compacting` plugin hook for compaction recovery, but SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), so startup/resume is not supported. Codex CLI has no hook support, so session tracking is not available.
 
@@ -438,26 +453,30 @@ Detailed event data is also indexed into FTS5 for on-demand retrieval via `searc
 
 **OpenCode** — Partial. The TypeScript plugin captures PostToolUse events via `tool.execute.after`, but SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)). Events are stored but not automatically restored after compaction. The `AGENTS.md` routing instructions file compensates by re-teaching tool preferences at each session start.
 
+**OpenClaw / Pi Agent** — High coverage. All tool lifecycle hooks (`after_tool_call`, `before_compaction`, `session_start`) fire via the native gateway plugin. User decisions aren't captured but file edits, git ops, errors, and tasks are fully tracked. Falls back to DB snapshot reconstruction if compaction hooks fail on older gateway versions. See [`docs/adapters/openclaw.md`](docs/adapters/openclaw.md).
+
 **Codex CLI** — No session support. No hooks means no event capture. Each compaction or new session starts fresh. The `AGENTS.md` routing instructions file is the only continuity mechanism.
 
 </details>
 
 ## Platform Compatibility
 
-| Feature | Claude Code | Gemini CLI <sup>(Beta)</sup> | VS Code Copilot <sup>(Beta)</sup> | Cursor <sup>(Beta)</sup> | OpenCode <sup>(Beta)</sup> | Codex CLI <sup>(Beta)</sup> |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| MCP Server | Yes | Yes | Yes | Yes | Yes | Yes |
-| PreToolUse Hook | Yes | Yes | Yes | Yes | Plugin | -- |
-| PostToolUse Hook | Yes | Yes | Yes | Yes | Plugin | -- |
-| SessionStart Hook | Yes | Yes | Yes | -- | -- | -- |
-| PreCompact Hook | Yes | Yes | Yes | -- | Plugin | -- |
-| Can Modify Args | Yes | Yes | Yes | Yes | Plugin | -- |
-| Can Block Tools | Yes | Yes | Yes | Yes | Plugin | -- |
-| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes | Yes |
-| Slash Commands | Yes | -- | -- | -- | -- | -- |
-| Plugin Marketplace | Yes | -- | -- | -- | -- | -- |
+| Feature | Claude Code | Gemini CLI <sup>(Beta)</sup> | VS Code Copilot <sup>(Beta)</sup> | Cursor <sup>(Beta)</sup> | OpenCode <sup>(Beta)</sup> | OpenClaw <sup>(Beta)</sup> | Codex CLI <sup>(Beta)</sup> |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| MCP Server | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| PreToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- |
+| PostToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- |
+| SessionStart Hook | Yes | Yes | Yes | -- | -- | Plugin | -- |
+| PreCompact Hook | Yes | Yes | Yes | -- | Plugin | Plugin | -- |
+| Can Modify Args | Yes | Yes | Yes | Yes | Plugin | Plugin | -- |
+| Can Block Tools | Yes | Yes | Yes | Yes | Plugin | Plugin | -- |
+| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Slash Commands | Yes | -- | -- | -- | -- | -- | -- |
+| Plugin Marketplace | Yes | -- | -- | -- | -- | -- | -- |
 
 > **OpenCode** uses a TypeScript plugin paradigm — hooks run as in-process functions via `tool.execute.before`, `tool.execute.after`, and `experimental.session.compacting`, providing the same routing enforcement and session continuity as shell-based hooks. SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), but compaction recovery works via the plugin's compacting hook.
+>
+> **OpenClaw** runs context-mode as a native gateway plugin targeting Pi Agent sessions. Hooks register via `api.on()` (tool/lifecycle) and `api.registerHook()` (commands). All tool interception and compaction hooks are supported. See [`docs/adapters/openclaw.md`](docs/adapters/openclaw.md).
 >
 > **Codex CLI** does not support hooks. It relies solely on routing instruction files (`AGENTS.md`) for enforcement (~60% compliance).
 
@@ -472,6 +491,7 @@ Hooks intercept tool calls programmatically — they can block dangerous command
 | VS Code Copilot | Yes | [`copilot-instructions.md`](configs/vscode-copilot/copilot-instructions.md) | **~98% saved** | ~60% saved |
 | Cursor | Yes | -- | **~98% saved** | Manual tool choice |
 | OpenCode | Plugin | [`AGENTS.md`](configs/opencode/AGENTS.md) | **~98% saved** | ~60% saved |
+| OpenClaw | Plugin | [`CLAUDE.md`](configs/claude-code/CLAUDE.md) | **~98% saved** | ~60% saved |
 | Codex CLI | -- | [`AGENTS.md`](configs/codex/AGENTS.md) | -- | ~60% saved |
 
 Without hooks, one unrouted `curl` or Playwright snapshot can dump 56 KB into context — wiping out an entire session's worth of savings.
