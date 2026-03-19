@@ -475,7 +475,7 @@ async function upgrade() {
 
     const items = [
       "build", "src", "hooks", "skills", ".claude-plugin",
-      "start.mjs", "server.bundle.mjs", "cli.bundle.mjs", "package.json",
+      "start.mjs", "native-abi.mjs", "server.bundle.mjs", "cli.bundle.mjs", "package.json",
     ];
     for (const item of items) {
       try {
