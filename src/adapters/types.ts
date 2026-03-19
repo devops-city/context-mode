@@ -302,6 +302,7 @@ export type PlatformId =
   | "cursor"
   | "antigravity"
   | "kiro"
+  | "pi"
   | "unknown";
 
 /** Detection signal used to identify which platform is running. */

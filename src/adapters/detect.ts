@@ -47,7 +47,7 @@ export function detectPlatform(clientInfo?: { name: string; version?: string }):
   if (platformOverride) {
     const validPlatforms: PlatformId[] = [
       "claude-code", "gemini-cli", "opencode", "codex",
-      "vscode-copilot", "cursor", "antigravity", "kiro",
+      "vscode-copilot", "cursor", "antigravity", "kiro", "pi",
     ];
     if (validPlatforms.includes(platformOverride as PlatformId)) {
       return {
@@ -157,6 +157,14 @@ export function detectPlatform(clientInfo?: { name: string; version?: string }):
       platform: "kiro",
       confidence: "medium",
       reason: "~/.kiro/ directory exists",
+    };
+  }
+
+  if (existsSync(resolve(home, ".pi"))) {
+    return {
+      platform: "pi",
+      confidence: "medium",
+      reason: "~/.pi/ directory exists",
     };
   }
 

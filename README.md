@@ -421,6 +421,36 @@ npm install -g context-mode
 </details>
 
 <details>
+<summary><strong>Pi Coding Agent</strong></summary>
+
+**Step 1 — Install the extension:**
+
+```bash
+git clone https://github.com/mksglu/context-mode.git ~/.pi/extensions/context-mode
+cd ~/.pi/extensions/context-mode
+npm install
+```
+
+**Step 2 — Add MCP server** to `~/.pi/settings/mcp.json` or `.pi/settings/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "context-mode": {
+      "command": "node",
+      "args": ["~/.pi/extensions/context-mode/node_modules/context-mode/start.mjs"]
+    }
+  }
+}
+```
+
+**Step 3 — Restart Pi.**
+
+The extension handles session continuity (event capture, resume snapshots, compaction recovery). The MCP server provides sandbox tools (batch_execute, execute, search, etc.).
+
+</details>
+
+<details>
 <summary><strong>Build Prerequisites</strong> <sup>(CentOS, RHEL, Alpine)</sup></summary>
 
 Context Mode uses [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), which ships prebuilt native binaries for most platforms. On glibc >= 2.31 systems (Ubuntu 20.04+, Debian 11+, Fedora 34+, macOS, Windows), `npm install` works without any build tools.
@@ -510,15 +540,15 @@ Context Mode captures every meaningful event during your session and persists th
 
 Session continuity requires 4 hooks working together:
 
-| Hook | Role | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | OpenClaw | Codex CLI | Antigravity | Kiro |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **PostToolUse** | Captures events after each tool call | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes |
-| **UserPromptSubmit** | Captures user decisions and corrections | Yes | -- | -- | -- | -- | -- | -- | -- | -- |
-| **PreCompact** | Builds snapshot before compaction | Yes | Yes | Yes | -- | Plugin | Plugin | -- | -- | -- |
-| **SessionStart** | Restores state after compaction or resume | Yes | Yes | Yes | -- | -- | Plugin | -- | -- | -- |
-| | **Session completeness** | **Full** | **High** | **High** | **Partial** | **High** | **High** | **--** | **--** | **Partial** |
+| Hook | Role | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | OpenClaw | Codex CLI | Antigravity | Kiro | Pi |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **PostToolUse** | Captures events after each tool call | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes | ✓ (via tool_result event) |
+| **UserPromptSubmit** | Captures user decisions and corrections | Yes | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| **PreCompact** | Builds snapshot before compaction | Yes | Yes | Yes | -- | Plugin | Plugin | -- | -- | -- | ✓ (via session_before_compact) |
+| **SessionStart** | Restores state after compaction or resume | Yes | Yes | Yes | -- | -- | Plugin | -- | -- | -- | ✓ (via session_start event) |
+| | **Session completeness** | **Full** | **High** | **High** | **Partial** | **High** | **High** | **--** | **--** | **Partial** | **High** |
 
-> **Note:** Full session continuity (capture + snapshot + restore) works on **Claude Code**, **Gemini CLI**, **VS Code Copilot**, and **OpenCode**. **Cursor** captures tool events via `preToolUse`/`postToolUse`, but `sessionStart` is currently rejected by Cursor's validator ([forum report](https://forum.cursor.com/t/unknown-hook-type-sessionstart/149566)), so session restore after compaction is not available yet. **OpenCode** uses the `experimental.session.compacting` plugin hook for compaction recovery, but SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), so startup/resume is not supported. **OpenClaw** uses native gateway plugin hooks (`api.on()`) for full session continuity. **Codex CLI**, **Antigravity**, and **Kiro** have no hook support in the current release, so session tracking is not available.
+> **Note:** Full session continuity (capture + snapshot + restore) works on **Claude Code**, **Gemini CLI**, **VS Code Copilot**, and **OpenCode**. **Cursor** captures tool events via `preToolUse`/`postToolUse`, but `sessionStart` is currently rejected by Cursor's validator ([forum report](https://forum.cursor.com/t/unknown-hook-type-sessionstart/149566)), so session restore after compaction is not available yet. **OpenCode** uses the `experimental.session.compacting` plugin hook for compaction recovery, but SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), so startup/resume is not supported. **OpenClaw** uses native gateway plugin hooks (`api.on()`) for full session continuity. **Pi Coding Agent** provides high session continuity via extension hooks (`tool_call`, `tool_result`, `session_start`, `session_before_compact`). **Codex CLI**, **Antigravity**, and **Kiro** have no hook support in the current release, so session tracking is not available.
 
 <details>
 <summary><strong>What gets captured</strong></summary>
@@ -605,22 +635,24 @@ Detailed event data is also indexed into FTS5 for on-demand retrieval via `searc
 
 **Kiro** — Partial coverage. Native `preToolUse` and `postToolUse` hooks capture tool events and enforce sandbox routing. `agentSpawn` (the Kiro equivalent of SessionStart) is not yet implemented, so session restore after compaction is not available. The `KIRO.md` routing instructions file is auto-written on first session start. Auto-detected via MCP protocol handshake (`clientInfo.name`).
 
+**Pi Coding Agent** — High coverage. The extension registers all key lifecycle events: `tool_call` (PreToolUse), `tool_result` (PostToolUse), `session_start` (SessionStart), and `session_before_compact` (PreCompact). File edits, git ops, errors, and tasks are fully tracked. Session restore after compaction works via the extension's event hooks. The `AGENTS.md` routing instructions file is auto-written on first session start.
+
 </details>
 
 ## Platform Compatibility
 
-| Feature | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | OpenClaw | Codex CLI | Antigravity | Kiro |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| MCP Server | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| PreToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes |
-| PostToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes |
-| SessionStart Hook | Yes | Yes | Yes | -- | -- | Plugin | -- | -- | -- |
-| PreCompact Hook | Yes | Yes | Yes | -- | Plugin | Plugin | -- | -- | -- |
-| Can Modify Args | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | -- |
-| Can Block Tools | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes |
-| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
-| Slash Commands | Yes | -- | -- | -- | -- | -- | -- | -- | -- |
-| Plugin Marketplace | Yes | -- | -- | -- | -- | -- | -- | -- | -- |
+| Feature | Claude Code | Gemini CLI | VS Code Copilot | Cursor | OpenCode | OpenClaw | Codex CLI | Antigravity | Kiro | Pi |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| MCP Server | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| PreToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes | Yes (extension) |
+| PostToolUse Hook | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes | Yes (extension) |
+| SessionStart Hook | Yes | Yes | Yes | -- | -- | Plugin | -- | -- | -- | Yes (extension) |
+| PreCompact Hook | Yes | Yes | Yes | -- | Plugin | Plugin | -- | -- | -- | Yes (extension) |
+| Can Modify Args | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | -- | Yes (extension) |
+| Can Block Tools | Yes | Yes | Yes | Yes | Plugin | Plugin | -- | -- | Yes | Yes (extension) |
+| Utility Commands (ctx) | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes (/ctx-stats, /ctx-doctor) |
+| Slash Commands | Yes | -- | -- | -- | -- | -- | -- | -- | -- | -- |
+| Plugin Marketplace | Yes | -- | -- | -- | -- | -- | -- | -- | -- | -- |
 
 > **OpenCode** uses a TypeScript plugin paradigm — hooks run as in-process functions via `tool.execute.before`, `tool.execute.after`, and `experimental.session.compacting`, providing the same routing enforcement and session continuity as shell-based hooks. SessionStart is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), but compaction recovery works via the plugin's compacting hook.
 >
@@ -629,6 +661,8 @@ Detailed event data is also indexed into FTS5 for on-demand retrieval via `searc
 > **Codex CLI** and **Antigravity** do not support hooks. They rely solely on routing instruction files (`AGENTS.md` / `GEMINI.md`) for enforcement (~60% compliance). Antigravity is auto-detected via MCP protocol handshake — no manual platform configuration needed.
 >
 > **Kiro** supports native `preToolUse` and `postToolUse` hooks for routing enforcement and tool event capture. `agentSpawn` (SessionStart equivalent) and `stop` are not yet wired. Kiro is auto-detected via MCP protocol handshake (`clientInfo.name`).
+>
+> **Pi Coding Agent** runs context-mode as an extension with full hook support. The extension registers `tool_call`, `tool_result`, `session_start`, and `session_before_compact` events, providing high session continuity coverage. The MCP server provides the 6 sandbox tools.
 
 ### Routing Enforcement
 
@@ -645,6 +679,7 @@ Hooks intercept tool calls programmatically — they can block dangerous command
 | Codex CLI | -- | [`AGENTS.md`](configs/codex/AGENTS.md) | -- | ~60% saved |
 | Antigravity | -- | [`GEMINI.md`](configs/antigravity/GEMINI.md) | -- | ~60% saved |
 | Kiro | Yes | [`KIRO.md`](configs/kiro/KIRO.md) | **~98% saved** | ~60% saved |
+| Pi | ✓ | [`AGENTS.md`](configs/pi/AGENTS.md) | **~98% saved** | ~60% saved |
 
 Without hooks, one unrouted `curl` or Playwright snapshot can dump 56 KB into context — wiping out an entire session's worth of savings.
 
