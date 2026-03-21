@@ -249,9 +249,9 @@ The `mcp` entry gives you the 6 sandbox tools. The `plugin` entry enables hooks 
 
 **Step 3 — Restart OpenCode.** The plugin intercepts tool calls at runtime via `tool.execute.before` and `tool.execute.after`, enforcing sandbox routing programmatically. No routing file is written to your project.
 
-> **Why the plugin matters:** Without the `plugin` entry, context-mode has no way to intercept tool calls. The model can run raw `curl`, read large files directly, or dump unprocessed output into context — ignoring `AGENTS.md` instructions. With the plugin, `tool.execute.before` fires on every tool call and blocks or redirects data-heavy commands before they execute. The `experimental.session.compacting` hook builds and injects resume snapshots when the conversation compacts, preserving session state.
+> **Why the plugin matters:** Without the `plugin` entry, context-mode has no way to intercept tool calls. The model can run raw `curl`, read large files directly, or dump unprocessed output into context. With the plugin, `tool.execute.before` fires on every tool call and blocks or redirects data-heavy commands before they execute. The `experimental.session.compacting` hook builds and injects resume snapshots when the conversation compacts, preserving session state.
 >
-> Note: OpenCode's SessionStart hook is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), so startup/resume session restore is not supported — the `AGENTS.md` file is the primary way context-mode instructions reach the model at session start. Compaction recovery works fully via the plugin.
+> Note: OpenCode's SessionStart hook is not yet available ([#14808](https://github.com/sst/opencode/issues/14808)), so startup/resume session restore is not supported. Compaction recovery works fully via the plugin.
 
 </details>
 
@@ -704,9 +704,7 @@ Detailed event data is also indexed into FTS5 for on-demand retrieval via `searc
 >
 > **Codex CLI**, **Antigravity**, and **Zed** do not support hooks. They rely solely on manually-copied routing instruction files (`AGENTS.md` / `GEMINI.md`) for enforcement (~60% compliance). See each platform's install section for copy instructions. Antigravity and Zed are auto-detected via MCP protocol handshake — no manual platform configuration needed.
 >
-> **Kiro** supports native `preToolUse` and `postToolUse` hooks for routing enforcement and tool event capture. `agentSpawn` (SessionStart equivalent) and `stop` are not yet wired. Kiro is auto-detected via MCP protocol handshake (`clientInfo.name`).
->
-> **Zed** does not support hooks. It relies solely on the `AGENTS.md` routing instructions file for enforcement (~60% compliance). Zed is auto-detected via MCP protocol handshake — no manual platform configuration needed.
+> **Kiro** supports native `preToolUse` and `postToolUse` hooks for routing enforcement and tool event capture. `agentSpawn` (SessionStart equivalent) and `stop` are not yet wired. Requires manually copying `KIRO.md` to your project root. Kiro is auto-detected via MCP protocol handshake (`clientInfo.name`).
 >
 > **Pi Coding Agent** runs context-mode as an extension with full hook support. The extension registers `tool_call`, `tool_result`, `session_start`, and `session_before_compact` events, providing high session continuity coverage. The MCP server provides the 6 sandbox tools.
 
